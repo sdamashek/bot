@@ -1,3 +1,0 @@
-[submodule "asyncirc"]
-	path = asyncirc
-	url = git@github.com:Watchtower/asyncirc.git
