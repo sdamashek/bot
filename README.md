@@ -4,7 +4,6 @@
 
 ## Installation
 ```sh
-git submodule update
 cp config.example.ini config.ini
 $EDITOR config.ini
 ```

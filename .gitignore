@@ -1,4 +1,6 @@
 /config.ini
 /venv
+/watchtower.db
 __pycache__
 *.py[co]
+*.swp
