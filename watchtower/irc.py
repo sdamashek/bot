@@ -25,14 +25,14 @@ registry = asyncirc.plugins.tracking.registry
 
 def join_channel(channel):
     bot.join(channel)
-    if Channel.get(Channel.name == channel) is not None:
+    if list(Channel.select().where(Channel.name == channel)) != []:
         return False, "The channel is already in the configuration."
     Channel.create(name=channel, config="{}")
     return True, "Channel added with default configuration."
 
 def leave_channel(channel):
     bot.part(channel)
-    if Channel.get(Channel.name == channel) is None:
+    if list(Channel.select().where(Channel.name == channel)) == []:
         return False, "The channel is not in the configuration."
     Channel.delete().where(Channel.name == channel).execute()
     return True, "Channel removed from configuration."
@@ -40,7 +40,13 @@ def leave_channel(channel):
 def channel_membership(user):
     if user not in registry.users:
         return False, "I don't know anything about {}.".format(user)
-    return True, "{} is on {}.".format(user, ", ".join(list(registry.users[user].channels)))
+    return None, "{} is on {}.".format(user, ", ".join(list(registry.users[user].channels)))
+
+def channel_info(channel):
+    if channel not in registry.channels:
+        return False, "I don't know anything about {}".format(channel)
+    channel_obj = asyncirc.plugins.tracking.get_channel(channel)
+    return None, "{} has {} users and modes {} set.".format(channel, len(list(channel_obj.users)), channel_obj.mode)
 
 channels = set([i.name for i in Channel.select()]) | {config["irc-channels"]["monitor"]}
 @bot.on("nickserv-auth-success")
@@ -57,7 +63,7 @@ def sync_done(channel):
     if channels_synced == channels:
         bot.say(config["irc-channels"]["monitor"], "Sync to {} channel(s) complete.".format(len(channels_synced)))
 
-commands = {"join": join_channel, "part": leave_channel, "membership": channel_membership}
+commands = {"join": join_channel, "part": leave_channel, "membership": channel_membership, "channel": channel_info}
 
 @bot.on("addressed")
 def dispatch_command(message, user, target, text):
@@ -67,7 +73,9 @@ def dispatch_command(message, user, target, text):
         bot.say(target, "Wrong number of arguments.")
         return
     success, message = commands[command](*args)
-    if success:
+    if success is True:
         bot.say(target, "Operation successful. {}".format(message))
-    else:
+    elif success is False:
         bot.say(target, "Operation failed. {}".format(message))
+    elif success is None:
+        bot.say(target, message)
