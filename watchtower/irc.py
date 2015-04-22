@@ -60,28 +60,50 @@ def test_permissions(user, perm):
     plist = set(map(lambda k: k.permission, Permission.select().where(Permission.account == account))) | {"default"}
     return plist & perm != set()
 
-@bot.on("addressed")
-def dispatch_command(message, user, target, text):
+def get_args(message, user, target, text, private=False):
+    extra_args = {"account": asyncirc.plugins.tracking.get_user(user.hostmask).account,
+                  "user": asyncirc.plugins.tracking.get_user(user.hostmask),
+                  "private": private,
+                  "message": message}
+    return extra_args
+
+def dispatch_command(message, user, reply_to, text):
     split = shlex.split(text)
     command, args = split[0], split[1:]
     func, perm, extra = commands[command]
     if not test_permissions(user, perm):
-        bot.say(target, "No permissions.")
-        return
-    if len(args) != len(inspect.getargspec(func)[0]) - len(extra):
-        bot.say(target, "Wrong number of arguments.")
+        bot.say(reply_to, "You do not have any of the required permissions.")
         return
 
-    extra_args = {"account": asyncirc.plugins.tracking.get_user(user.hostmask).account}
+    argspec = inspect.getfullargspec(func)
+    min_args = len(argspec.args) - len(extra)
+    if argspec.varargs is None:
+        if len(args) != min_args:
+            bot.say(target, "Wrong number of arguments. There must be exactly {}.".format(min_args))
+            return
+    else:
+        if len(args) < min_args:
+            bot.say(target, "Not enough arguments. There must be at least {}.".format(min_args))
+            return
+
+    extra_args = get_args(message, user, reply_to, text, False)
     args = [extra_args[a] for a in extra] + args
 
     success, message = func(*args)
     if success is True:
-        bot.say(target, "Operation successful. {}".format(message))
+        bot.say(reply_to, "Operation successful. {}".format(message))
     elif success is False:
-        bot.say(target, "Operation failed. {}".format(message))
+        bot.say(reply_to, "Operation failed. {}".format(message))
     elif success is None:
-        bot.say(target, message)
+        bot.say(reply_to, message)
+
+@bot.on("addressed")
+def command_received(message, user, target, text):
+    dispatch_command(message, user, target, text)
+
+@bot.on("private-message")
+def private_received(message, user, target, text):
+    dispatch_command(message, user, user.nick, text)
 
 @command("join", {"dev", "admin"})
 def join_channel(channel):
@@ -99,11 +121,26 @@ def leave_channel(channel):
     Channel.delete().where(Channel.name == channel).execute()
     return True, "Channel removed from configuration."
 
-@command("membership", {"dev", "analyst"})
-def channel_membership(user):
+@command("membership", {"dev", "analyst"}, ["private"])
+def channel_membership(is_private, user):
     if user not in registry.users:
         return False, "I don't know anything about {}.".format(user)
-    return None, "{} is on {}.".format(user, ", ".join(list(registry.users[user].channels)))
+
+    channels = sorted(list(registry.users[user].channels))
+    secret_channels = {c for c in channels if "s" in get_channel(c).mode}
+    if not channels:
+        return None, "{} is in no channels that I know of.".format(user)
+    if is_private:
+        return None, "{} is on {}.".format(user, ", ".join(channels))
+    else:
+        nonsecret = [c for c in channels if c not in secret_channels]
+        if not nonsecret:
+            return None, "{} is on {} channels.".format(len(channels))
+        elif not secret:
+            return None, "{} is on {}.".format(user, ", ".join(channels))
+        else:
+            return None, "{} is on {}, and {} additional channels.".format(user, ", ".join(channels), len(secret_channels))
+
 
 @command("channel", {"dev", "analyst"})
 def channel_info(channel):
@@ -115,9 +152,5 @@ def channel_info(channel):
 @command("help", {"default"}, ["account"])
 def help(account):
     perms = set(map(lambda k: k.permission, Permission.select().where(Permission.account == account))) | {"default"}
-    allowed = []
-    for command in commands:
-        if commands[command][1] & perms != set():
-            allowed.append(command)
-    allowed.sort()
+    allowed = sorted([commands[command][1] for command in commands if commands[command][1] & perms != set()])
     return None, "Commands you can use: {}".format(", ".join(allowed))
