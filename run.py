@@ -9,6 +9,9 @@ def shell(dank, memes):
     code.interact(banner="Watchtower shell started.", local=namespace)
 signal.signal(signal.SIGUSR1, shell)
 
+import watchtower.detection
+import watchtower.action
+
 import watchtower.irc
 import asyncio
 asyncio.get_event_loop().run_forever()
