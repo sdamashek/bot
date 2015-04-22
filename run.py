@@ -1,13 +1,27 @@
 import logging
 logging.basicConfig(level=logging.INFO)
 
-import signal
-def shell(dank, memes):
-    import code
+shell_banner = """This is the debug shell for Watchtower.
+Be careful, as this shell runs in the same environment as the bot, only in a
+separate thread. Watchtower is generally not thread-safe, so please be careful
+in this environment.
+
+`watchtower.irc.registry` is the channel tracking registry.
+`watchtower.irc.bot` is the IRCProtocol object.
+`watchtower.irc.asyncirc` is our asyncirc import.
+"""
+
+import code
+def shell():
     namespace = locals()
     namespace.update(globals())
-    code.interact(banner="Watchtower shell started.", local=namespace)
-signal.signal(signal.SIGUSR1, shell)
+    code.interact(banner=shell, local=namespace)
+
+def launch_shell(_, _):
+    threading.Thread(target=shell).start()
+
+import signal
+signal.signal(signal.SIGUSR1, launch_shell)
 
 import watchtower.detection
 import watchtower.action

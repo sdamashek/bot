@@ -19,6 +19,7 @@ logger = logging.getLogger("irc")
 
 bot = irc.connect(server_config["host"], int(server_config["port"]), use_ssl=bool(server_config["ssl"]))
 
+# TODO refactor into a capabilities plugin
 bot.writeln("CAP REQ :account-notify extended-join")
 bot.caps = bot.caps | {"extended-join"}
 bot.writeln("CAP END")
@@ -32,15 +33,15 @@ bot.register(user_config["nick"], user_config["ident"], user_config["realname"],
 
 registry = asyncirc.plugins.tracking.registry
 channels = set([i.name for i in Channel.select()]) | {config["irc-channels"]["monitor"]}
-@bot.on("nickserv-auth-success")
+@bot.on("nickserv-auth-success" if auth_config["method"] != "null" else "irc-001")
 def autojoin(message):
-    logger.warn("NickServ auth complete")
+    logger.info("Authentication complete.")
     bot.join(config["irc-channels"]["monitor"])
     for channel in channels:
         bot.join(channel)
 
 channels_synced = set()
-sync_notified = [False] # FIXME
+sync_notified = [False] # FIXME :(
 @bot.on("sync-done")
 def sync_done(channel):
     channels_synced.add(channel)
@@ -141,13 +142,21 @@ def channel_membership(is_private, user):
         else:
             return None, "{} is on {}, and {} additional channels.".format(user, ", ".join(channels), len(secret_channels))
 
-
 @command("channel", {"dev", "analyst"})
 def channel_info(channel):
     if channel not in registry.channels:
         return False, "I don't know anything about {}".format(channel)
     channel_obj = asyncirc.plugins.tracking.get_channel(channel)
     return None, "{} has {} users and modes {} set.".format(channel, len(list(channel_obj.users)), channel_obj.mode)
+
+@command("unsynced", {"dev"}, ["private"])
+def unsynced(private):
+    if not private:
+        return False, "Please run this command in a PM."
+    unsynced_channels = channels - channels_synced
+    if len(unsynced_channels) == 0:
+        return None, "There are no unsynced channels."
+    return None, ", ".join(sorted(list(un)))
 
 @command("help", {"default"}, ["account"])
 def help(account):
