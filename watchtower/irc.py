@@ -40,41 +40,41 @@ def autojoin(message):
         bot.join(channel)
 
 channels_synced = set()
-sync_notified = False
+sync_notified = [False] # FIXME
 @bot.on("sync-done")
 def sync_done(channel):
     channels_synced.add(channel)
-    if channels_synced == channels and not sync_notified:
-        sync_notified = True
+    if channels_synced == channels and not sync_notified[0]:
+        sync_notified[0] = True
         bot.say(config["irc-channels"]["monitor"], "Sync to {} channel(s) complete.".format(len(channels_synced)))
 
 commands = {}
-def command(name, perm=["default"]):
+def command(name, perm={"default"}, extra=[]):
     def decorate(f):
-        commands[name] = (f, perm)
+        commands[name] = (f, perm, extra)
         return f
     return decorate
 
 def test_permissions(user, perm):
     account = asyncirc.plugins.tracking.get_user(user.hostmask).account
-    plist = list(map(lambda k: k.permission, Permission.select().where(Permission.account == account)))
-    plist += ["default"]
-    for p in perm:
-        if p in plist:
-            return True
-    return False
+    plist = set(map(lambda k: k.permission, Permission.select().where(Permission.account == account))) | {"default"}
+    return plist & perm != set()
 
 @bot.on("addressed")
 def dispatch_command(message, user, target, text):
     split = shlex.split(text)
     command, args = split[0], split[1:]
-    func, perm = commands[command]
-    if len(args) != len(inspect.getargspec(func)[0]):
-        bot.say(target, "Wrong number of arguments.")
-        return
+    func, perm, extra = commands[command]
     if not test_permissions(user, perm):
         bot.say(target, "No permissions.")
         return
+    if len(args) != len(inspect.getargspec(func)[0]) - len(extra):
+        bot.say(target, "Wrong number of arguments.")
+        return
+
+    extra_args = {"account": asyncirc.plugins.tracking.get_user(user.hostmask).account}
+    args = [extra_args[a] for a in extra] + args
+
     success, message = func(*args)
     if success is True:
         bot.say(target, "Operation successful. {}".format(message))
@@ -83,7 +83,7 @@ def dispatch_command(message, user, target, text):
     elif success is None:
         bot.say(target, message)
 
-@command("join", ["dev", "admin"])
+@command("join", {"dev", "admin"})
 def join_channel(channel):
     bot.join(channel)
     if list(Channel.select().where(Channel.name == channel)) != []:
@@ -91,7 +91,7 @@ def join_channel(channel):
     Channel.create(name=channel, config="{}")
     return True, "Channel added with default configuration."
 
-@command("part", ["dev", "admin"])
+@command("part", {"dev", "admin"})
 def leave_channel(channel):
     bot.part(channel)
     if list(Channel.select().where(Channel.name == channel)) == []:
@@ -99,23 +99,25 @@ def leave_channel(channel):
     Channel.delete().where(Channel.name == channel).execute()
     return True, "Channel removed from configuration."
 
-@command("membership", ["dev", "analyst"])
+@command("membership", {"dev", "analyst"})
 def channel_membership(user):
     if user not in registry.users:
         return False, "I don't know anything about {}.".format(user)
     return None, "{} is on {}.".format(user, ", ".join(list(registry.users[user].channels)))
 
-@command("channel", ["dev", "analyst"])
+@command("channel", {"dev", "analyst"})
 def channel_info(channel):
     if channel not in registry.channels:
         return False, "I don't know anything about {}".format(channel)
     channel_obj = asyncirc.plugins.tracking.get_channel(channel)
     return None, "{} has {} users and modes {} set.".format(channel, len(list(channel_obj.users)), channel_obj.mode)
 
-@command("account", ["dev", "analyst"])
-def account_info(u):
-    return None, str(asyncirc.plugins.tracking.get_user(u).account)
-
-@command("permission", ["dev"])
-def permission_info(u):
-    return None, str(list(map(lambda k: k.permission, Permission.select().where(Permission.account == u))))
+@command("help", {"default"}, ["account"])
+def help(account):
+    perms = set(map(lambda k: k.permission, Permission.select().where(Permission.account == account))) | {"default"}
+    allowed = []
+    for command in commands:
+        if commands[command][1] & perms != set():
+            allowed.append(command)
+    allowed.sort()
+    return None, "Commands you can use: {}".format(", ".join(allowed))

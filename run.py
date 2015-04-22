@@ -1,5 +1,3 @@
-import watchtower.irc
-
 import logging
 logging.basicConfig(level=logging.INFO)
 
@@ -11,5 +9,6 @@ def shell(dank, memes):
     code.interact(banner="Watchtower shell started.", local=namespace)
 signal.signal(signal.SIGUSR1, shell)
 
+import watchtower.irc
 import asyncio
 asyncio.get_event_loop().run_forever()
