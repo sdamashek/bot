@@ -40,10 +40,12 @@ def autojoin(message):
         bot.join(channel)
 
 channels_synced = set()
+sync_notified = False
 @bot.on("sync-done")
 def sync_done(channel):
     channels_synced.add(channel)
-    if channels_synced == channels:
+    if channels_synced == channels and not sync_notified:
+        sync_notified = True
         bot.say(config["irc-channels"]["monitor"], "Sync to {} channel(s) complete.".format(len(channels_synced)))
 
 commands = {}
