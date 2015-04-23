@@ -1,5 +1,5 @@
 from .config import config
-from .models import Channel, Permission
+from .models import Channel, Permission, BlacklistEntry
 
 import asyncirc.plugins.addressed
 import asyncirc.plugins.nickserv
@@ -68,7 +68,7 @@ def get_args(message, user, target, text, private=False):
                   "message": message}
     return extra_args
 
-def dispatch_command(message, user, reply_to, text):
+def dispatch_command(message, user, reply_to, text, private=False):
     split = shlex.split(text)
     command, args = split[0], split[1:]
     func, perm, extra = commands[command]
@@ -87,7 +87,7 @@ def dispatch_command(message, user, reply_to, text):
             bot.say(target, "Not enough arguments. There must be at least {}.".format(min_args))
             return
 
-    extra_args = get_args(message, user, reply_to, text, False)
+    extra_args = get_args(message, user, reply_to, text, private)
     args = [extra_args[a] for a in extra] + args
 
     success, message = func(*args)
@@ -104,7 +104,7 @@ def command_received(message, user, target, text):
 
 @bot.on("private-message")
 def private_received(message, user, target, text):
-    dispatch_command(message, user, user.nick, text)
+    dispatch_command(message, user, user.nick, text, True)
 
 @command("join", {"dev", "admin"})
 def join_channel(channel):
@@ -128,19 +128,19 @@ def channel_membership(is_private, user):
         return False, "I don't know anything about {}.".format(user)
 
     channels = sorted(list(registry.users[user].channels))
-    secret_channels = {c for c in channels if "s" in get_channel(c).mode}
+    secret_channels = {c for c in channels if "s" in asyncirc.plugins.tracking.get_channel(c).mode}
     if not channels:
         return None, "{} is in no channels that I know of.".format(user)
     if is_private:
         return None, "{} is on {}.".format(user, ", ".join(channels))
     else:
-        nonsecret = [c for c in channels if c not in secret_channels]
+        nonsecret = sorted([c for c in channels if c not in secret_channels])
         if not nonsecret:
             return None, "{} is on {} channels.".format(len(channels))
-        elif not secret:
+        elif not secret_channels:
             return None, "{} is on {}.".format(user, ", ".join(channels))
         else:
-            return None, "{} is on {}, and {} additional channels.".format(user, ", ".join(channels), len(secret_channels))
+            return None, "{} is on {}, and {} additional channel(s).".format(user, ", ".join(nonsecret), len(secret_channels))
 
 @command("channel", {"dev", "analyst"})
 def channel_info(channel):
@@ -161,5 +161,29 @@ def unsynced(private):
 @command("help", {"default"}, ["account"])
 def help(account):
     perms = set(map(lambda k: k.permission, Permission.select().where(Permission.account == account))) | {"default"}
-    allowed = sorted([commands[command][1] for command in commands if commands[command][1] & perms != set()])
+    allowed = sorted([command for command in commands if commands[command][1] & perms != set()])
     return None, "Commands you can use: {}".format(", ".join(allowed))
+
+@command("blacklist", {"dev", "admin"})
+def add_pattern(blacklist_pattern):
+    entry = BlacklistEntry.create(pattern=blacklist_pattern)
+    return True, "Entry created with ID {}.".format(entry.id)
+
+@command("blweight", {"dev", "admin"})
+def set_weight(blid, weight):
+    blid = int(blid)
+    weight = int(weight)
+    t = BlacklistEntry.update(weight=weight).where(BlacklistEntry.id == blid).execute()
+    return bool(t), ""
+
+@command("blreason", {"dev", "admin"})
+def set_reason(blid, reason):
+    blid = int(blid)
+    t = BlacklistEntry.update(reason=reason).where(BlacklistEntry.id == blid).execute()
+    return bool(t), ""
+
+@command("unblacklist", {"dev", "admin"})
+def unblacklist(blid):
+    blid = int(blid)
+    t = BlacklistEntry.delete().where(BlacklistEntry.id == blid).execute()
+    return bool(t), ""

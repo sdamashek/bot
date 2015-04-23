@@ -1,18 +1,22 @@
 from blinker import signal
+from watchtower.models import BlacklistEntry
+import re
 
 class Detector:
     def detect(self, message):
         raise NotImplemented()
 
-class SpamDetector(Detector):
-    name = "spammy spam"
+class BlacklistDetector(Detector):
+    name = "blacklisting"
     def detect(self, message):
-        if "spammy spam" in message:
-            return 0.5
-        else:
-            return 0
+        cscore = 0
+        patterns = list(map(lambda k: (k.pattern, k.weight), BlacklistEntry().select()))
+        for pattern, weight in patterns:
+            if re.match(pattern, message) is not None:
+                cscore += weight
+        return cscore
 
-detectors = [SpamDetector()]
+detectors = [BlacklistDetector()]
 
 pubmsg = signal("public-message")
 @pubmsg.connect
@@ -20,7 +24,7 @@ def handle_messages(message, user, target, text):
     score = 0
     triggered = set()
     for detector in detectors:
-        cscore += detector.detect(text)
+        cscore = detector.detect(text)
         if cscore:
             triggered.add(detector.name)
             score += cscore

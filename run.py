@@ -1,4 +1,5 @@
 import logging
+import threading
 logging.basicConfig(level=logging.INFO)
 
 shell_banner = """This is the debug shell for Watchtower.
@@ -15,9 +16,9 @@ import code
 def shell():
     namespace = locals()
     namespace.update(globals())
-    code.interact(banner=shell, local=namespace)
+    code.interact(banner=shell_banner, local=namespace)
 
-def launch_shell(_, _):
+def launch_shell(_, _2):
     threading.Thread(target=shell).start()
 
 import signal

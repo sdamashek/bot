@@ -12,3 +12,9 @@ class Channel(BaseModel):
 class Permission(BaseModel):
     account = TextField()
     permission = TextField()
+    channel = TextField(default="*")
+
+class BlacklistEntry(BaseModel):
+    weight = IntegerField(default=5)
+    pattern = TextField()
+    reason = TextField(default="no reason")
