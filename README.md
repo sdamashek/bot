@@ -1,6 +1,7 @@
-# bot
+# Watchtower Bot
+
 ## Project resources
-- [To-do list](https://kanboard.zacharydubois.moe/?controller=board&action=readonly&token=68e24bc986e2343abdd5789dce49b32535dfa98f71ccc1b6080ef738a9fc)
+- [Kanboard](https://kb.watchtowerbot.org/?controller=board&action=readonly&token=924cc644f73d4e33bb60bb478bc668b0f47e2ce660bedb220335a9959004)
 
 ## Installation
 ```sh
