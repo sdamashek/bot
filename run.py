@@ -13,10 +13,13 @@ in this environment.
 """
 
 import code
+
+
 def shell():
     namespace = locals()
     namespace.update(globals())
     code.interact(banner=shell_banner, local=namespace)
+
 
 def launch_shell(_, _2):
     threading.Thread(target=shell).start()

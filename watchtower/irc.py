@@ -33,6 +33,8 @@ bot.register(user_config["nick"], user_config["ident"], user_config["realname"],
 
 registry = asyncirc.plugins.tracking.registry
 channels = set([i.name for i in Channel.select()]) | {config["irc-channels"]["monitor"]}
+
+
 @bot.on("nickserv-auth-success" if auth_config["method"] != "null" else "irc-001")
 def autojoin(message):
     logger.info("Authentication complete.")
@@ -41,7 +43,9 @@ def autojoin(message):
         bot.join(channel)
 
 channels_synced = set()
-sync_notified = [False] # FIXME :(
+sync_notified = [False]  # FIXME :(
+
+
 @bot.on("sync-done")
 def sync_done(channel):
     channels_synced.add(channel)
@@ -50,16 +54,20 @@ def sync_done(channel):
         bot.say(config["irc-channels"]["monitor"], "Sync to {} channel(s) complete.".format(len(channels_synced)))
 
 commands = {}
+
+
 def command(name, perm={"default"}, extra=[]):
     def decorate(f):
         commands[name] = (f, perm, extra)
         return f
     return decorate
 
+
 def test_permissions(user, perm):
     account = asyncirc.plugins.tracking.get_user(user.hostmask).account
     plist = set(map(lambda k: k.permission, Permission.select().where(Permission.account == account))) | {"default"}
     return plist & perm != set()
+
 
 def get_args(message, user, target, text, private=False):
     extra_args = {"account": asyncirc.plugins.tracking.get_user(user.hostmask).account,
@@ -67,6 +75,7 @@ def get_args(message, user, target, text, private=False):
                   "private": private,
                   "message": message}
     return extra_args
+
 
 def dispatch_command(message, user, reply_to, text, private=False):
     split = shlex.split(text)
@@ -98,13 +107,16 @@ def dispatch_command(message, user, reply_to, text, private=False):
     elif success is None:
         bot.say(reply_to, message)
 
+
 @bot.on("addressed")
 def command_received(message, user, target, text):
     dispatch_command(message, user, target, text)
 
+
 @bot.on("private-message")
 def private_received(message, user, target, text):
     dispatch_command(message, user, user.nick, text, True)
+
 
 @command("join", {"dev", "admin"})
 def join_channel(channel):
@@ -114,6 +126,7 @@ def join_channel(channel):
     Channel.create(name=channel, config="{}")
     return True, "Channel added with default configuration."
 
+
 @command("part", {"dev", "admin"})
 def leave_channel(channel):
     bot.part(channel)
@@ -121,6 +134,7 @@ def leave_channel(channel):
         return False, "The channel is not in the configuration."
     Channel.delete().where(Channel.name == channel).execute()
     return True, "Channel removed from configuration."
+
 
 @command("membership", {"dev", "analyst"}, ["private"])
 def channel_membership(is_private, user):
@@ -142,12 +156,14 @@ def channel_membership(is_private, user):
         else:
             return None, "{} is on {}, and {} additional channel(s).".format(user, ", ".join(nonsecret), len(secret_channels))
 
+
 @command("channel", {"dev", "analyst"})
 def channel_info(channel):
     if channel not in registry.channels:
         return False, "I don't know anything about {}".format(channel)
     channel_obj = asyncirc.plugins.tracking.get_channel(channel)
     return None, "{} has {} users and modes {} set.".format(channel, len(list(channel_obj.users)), channel_obj.mode)
+
 
 @command("unsynced", {"dev"}, ["private"])
 def unsynced(private):
@@ -158,16 +174,19 @@ def unsynced(private):
         return None, "There are no unsynced channels."
     return None, ", ".join(sorted(list(un)))
 
+
 @command("help", {"default"}, ["account"])
 def help(account):
     perms = set(map(lambda k: k.permission, Permission.select().where(Permission.account == account))) | {"default"}
     allowed = sorted([command for command in commands if commands[command][1] & perms != set()])
     return None, "Commands you can use: {}".format(", ".join(allowed))
 
+
 @command("blacklist", {"dev", "admin"})
 def add_pattern(blacklist_pattern):
     entry = BlacklistEntry.create(pattern=blacklist_pattern)
     return True, "Entry created with ID {}.".format(entry.id)
+
 
 @command("blweight", {"dev", "admin"})
 def set_weight(blid, weight):
@@ -176,11 +195,13 @@ def set_weight(blid, weight):
     t = BlacklistEntry.update(weight=weight).where(BlacklistEntry.id == blid).execute()
     return bool(t), ""
 
+
 @command("blreason", {"dev", "admin"})
 def set_reason(blid, reason):
     blid = int(blid)
     t = BlacklistEntry.update(reason=reason).where(BlacklistEntry.id == blid).execute()
     return bool(t), ""
+
 
 @command("unblacklist", {"dev", "admin"})
 def unblacklist(blid):

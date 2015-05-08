@@ -2,12 +2,16 @@ from blinker import signal
 from watchtower.models import BlacklistEntry
 import re
 
+
 class Detector:
+
     def detect(self, message):
         raise NotImplemented()
 
+
 class BlacklistDetector(Detector):
     name = "blacklisting"
+
     def detect(self, message):
         cscore = 0
         patterns = list(map(lambda k: (k.pattern, k.weight), BlacklistEntry().select()))
@@ -19,6 +23,8 @@ class BlacklistDetector(Detector):
 detectors = [BlacklistDetector()]
 
 pubmsg = signal("public-message")
+
+
 @pubmsg.connect
 def handle_messages(message, user, target, text):
     score = 0
@@ -31,4 +37,3 @@ def handle_messages(message, user, target, text):
 
     if score > 0:
         signal("detectors-triggered").send(message, user=user, target=target, text=text, triggered=triggered, score=score)
-

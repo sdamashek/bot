@@ -1,7 +1,9 @@
 from .config import config
 from peewee import *
 
-class UnknownDriverException(Exception): pass
+
+class UnknownDriverException(Exception):
+    pass
 
 dbconfig = config["database"]
 

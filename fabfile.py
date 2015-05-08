@@ -1,5 +1,6 @@
 from fabric.api import run, put, cd, prefix
 
+
 def deploy():
     run("killall -USR2 python || echo No python process found")
     run("rm -rf watchtower-bot || echo No watchtower dir found")
