@@ -89,11 +89,11 @@ def dispatch_command(message, user, reply_to, text, private=False):
     min_args = len(argspec.args) - len(extra)
     if argspec.varargs is None:
         if len(args) != min_args:
-            bot.say(target, "Wrong number of arguments. There must be exactly {}.".format(min_args))
+            bot.say(reply_to, "Wrong number of arguments. There must be exactly {}.".format(min_args))
             return
     else:
         if len(args) < min_args:
-            bot.say(target, "Not enough arguments. There must be at least {}.".format(min_args))
+            bot.say(reply_to, "Not enough arguments. There must be at least {}.".format(min_args))
             return
 
     extra_args = get_args(message, user, reply_to, text, private)
@@ -172,7 +172,7 @@ def unsynced(private):
     unsynced_channels = channels - channels_synced
     if len(unsynced_channels) == 0:
         return None, "There are no unsynced channels."
-    return None, ", ".join(sorted(list(un)))
+    return None, ", ".join(sorted(list(unsynced_channels)))
 
 
 @command("help", {"default"}, ["account"])
